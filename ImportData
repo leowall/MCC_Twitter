@@ -1,0 +1,29 @@
+# Import of csv - need to change file name depending on file that needs to be imported
+MCCTweets <- read_csv("Nov_29_09_47_06_2017_GMT_@ManCityCouncil_TwitterData.csv")
+
+# convert text type if lots of hex unicode 
+#MCCTweets$text <- iconv(MCCTweets$text, to = 'utf-8')
+
+#dates of tweets histogram
+ggplot(MCCTweets, aes(created)) +
+  geom_histogram(binwidth = 2500)
+
+# Number of retweets
+MCCTweets %>%
+  count(isRetweet)
+
+# create tweets data set for cleaning and tidying
+tweets <- data_frame(MCCTweets$X1, MCCTweets$text, MCCTweets$screenName, MCCTweets$created)
+tweets <- tweets %>%
+  rename(ID = `MCCTweets$X1`, text = `MCCTweets$text`, ScreenName = `MCCTweets$screenName`, CreatedDate = `MCCTweets$created`)
+
+
+replace_reg <- "https://t.co/[A-Za-z\\d]+|http://[A-Za-z\\d]+|\\<U[^\\>]*\\>+|\\<e[^\\>]\\>+|&amp;|&lt;|&gt;|RT|https|"
+unnest_reg <- "([^A-Za-z_\\d#@']|'(?![A-Za-z_\\d#@]))"
+tidy_tweets <- tweets %>% 
+  filter(!str_detect(text, "^RT")) %>%
+  mutate(text = str_replace_all(text, replace_reg, "")) %>%
+  unnest_tokens(word, text, token = "regex", pattern = unnest_reg) %>%
+  filter(word != "ed") %>%
+  filter(!word %in% stop_words$word,
+         str_detect(word, "[a-z]"))
