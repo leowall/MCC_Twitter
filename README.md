@@ -20,3 +20,6 @@ library(sentimentr)
 library(tm)
 
 
+RTextTools package - machine learning library for text classification (http://www.rtexttools.com/)
+https://drive.google.com/open?id=0Bx9krKFSivgnWnRLQlh5OVBITk0
+
