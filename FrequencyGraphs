@@ -1,0 +1,31 @@
+# requires ImportTwitterData code to have been run
+# source(ImportTwitterData.R)
+
+
+frequency <- tidy_tweets %>%
+  count(word, sort = TRUE) %>%
+  mutate(freq = n/4224*100)
+  
+tidy_tweets %>%
+  count(n())
+
+wordcount <- tidy_tweets %>%
+  mutate(word = str_replace_all(tidy_tweets$word,"#[a-z,A-Z]*",""))
+
+wordcount <- wordcount %>%
+  filter(!str_detect(word, "^@")) %>%
+  filter(!str_detect(word, "^00")) %>%
+  filter(word != "") %>%
+  filter(word != "ed") %>%
+  filter(word != "fe0f") %>%
+  count(word, sort = TRUE)
+
+wordcount %>%
+  mutate(word = reorder(word, n)) %>%
+  top_n(25) %>%
+  ggplot(aes(word, n)) +
+  geom_bar(stat = "identity", color = "#733151", fill = "#733151") +
+  ggtitle("Top 25 Words Occuring in Tweets Mentioning @ManCityCouncil") +
+  ylab("Number of Occurances") +
+  theme_LeoCorp() +
+  coord_flip()
