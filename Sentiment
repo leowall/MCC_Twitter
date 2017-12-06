@@ -134,6 +134,187 @@ preds_tweets <- predict(glmnet_classifier, dtm_tweets_tfidf, type = 'response')[
 # adding rates to initial dataset
 MCCTweets$sentiment <- preds_tweets
 
+# word analysis of positive or negative tweets
+# source("TrainingModel.R")
+# source("MCCTweetsData.R")
+
+
+.libPaths("U:/R/library")
+source("U:/R/Code/ggplottheme.R")
+
+library(wordcloud2)
+library(stringr)
+library(tidytext)
+library(igraph)
+library(ggraph)
+
+
+TweetText <- MCCTweets
+
+replace_reg <- "https://t.co/[A-Za-z\\d]+|http://[A-Za-z\\d]+|\\<U[^\\>]*\\>+|&amp;|&lt;|&gt;|RT|https|"
+unnest_reg <- "([^A-Za-z_\\d#@']|'(?![A-Za-z_\\d#@]))"
+
+CleanTweets <- TweetText %>% 
+  filter(!str_detect(text, "^RT")) %>%
+  mutate(text = str_replace_all(text, replace_reg, "")) %>%
+  mutate(text = str_replace_all(text, "(@)([^ ]+)", "")) %>%
+  mutate(text = str_replace_all(text, "(#)","")) %>%
+  mutate(text = str_replace_all(text," "," ")) %>%
+  filter(str_length(text)>8)
+
+# Negative sentiment <0.3, positive >0.65, neutral is in-between)
+SentWords <- CleanTweets %>%
+  filter(sentiment > 0.65) %>%
+  arrange(sentiment)
+
+# Negative <0.3, Positive >0.65, neutral in between
+
+#NegativeSentiment <- AllWords %>%
+#  filter(sentiment < 0.3) %>%
+#  arrange(sentiment)
+
+AllWords <- SentWords %>%
+  unnest_tokens(word, text, token = "regex", pattern = unnest_reg) %>%
+  filter(!word %in% stop_words$word, str_detect(word, "[a-z]"))
+
+wordcount <- AllWords %>%
+  mutate(word = str_replace_all(AllWords$word,"#[a-z,A-Z]*",""))
+
+wordcount <- wordcount %>%
+  filter(!str_detect(word, "^@")) %>%
+  filter(!str_detect(word, "^00")) %>%
+  filter(word != "") %>%
+  filter(word != "ed") %>%
+  filter(word != "fe0f") %>%
+  count(word, sort = TRUE)
+
+wordcount %>%
+  mutate(word = reorder(word, n)) %>%
+  top_n(20) %>%
+  ggplot(aes(word, n)) +
+  geom_bar(stat = "identity", color = "#733151", fill = "#733151") +
+  ggtitle("Top 10 Words From Negative Tweets") +
+  theme_LeoCorp() +
+  coord_flip()
+
+wordcloud2(wordcount)
+
+
+Bigrams <- SentWords %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word) %>%
+  count(word1, word2, sort = FALSE)
+
+Bigrams <- Bigrams %>%
+  filter(!str_detect(word1, "^@"),
+         !str_detect(word2, "^@"))
+
+bigram_graph <- Bigrams %>%
+  filter(n>=1) %>%
+  graph_from_data_frame()
+
+#netwok of links between words
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(.07, "inches")) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+
+#Bigrams wordcloud needs to combine words and add counts
+#wordcloud2(Bigrams)
+
+# analysis of accounts by sentiment
+
+# repeat for tweets directly to MCC
+
+toMCCCleanTweets <- MCCTweets %>%
+  filter(str_detect(text, "^(@ManCityCouncil)")) %>%
+  filter(!str_detect(text, "^RT")) %>%
+  mutate(text = str_replace_all(text, replace_reg, "")) %>%
+  mutate(text = str_replace_all(text, "(@)([^ ]+)", "")) %>%
+  mutate(text = str_replace_all(text, "(#)","")) %>%
+  mutate(text = gsub("^\\s+|\\s+$", "", text))
+
+
+Accounts <- toMCCCleanTweets %>%
+  group_by(screenName) %>%
+  summarise(
+    n = n(),
+    AveSent = mean(sentiment)
+  ) %>%
+  arrange(AveSent)
+
+
+Accounts %>%
+  mutate(screenName = reorder(screenName, AveSent)) %>%
+  top_n(25) %>%
+  ggplot(aes(screenName, AveSent)) +
+  geom_bar(stat = "identity", color = "#733151", fill = "#733151") +
+  ggtitle("Top 25 Most Positive Tweeters") +
+  theme_LeoCorp() +
+  coord_flip()
+
+
+NegativeSentiment <- toMCCCleanTweets %>%
+  filter(sentiment < 0.3) %>%
+  arrange(sentiment)
+
+NeutralSentiment <- toMCCCleanTweets %>%
+  filter(sentiment > 0.3 & sentiment < 0.65) %>%
+  arrange(sentiment)
+
+PositiveSentiment <- toMCCCleanTweets %>%
+  filter(sentiment > 0.65) %>%
+  arrange(sentiment)
+
+
+NegTweetAcc <- NegativeSentiment %>%
+  group_by(screenName) %>%
+  summarise(
+    NegTweets = n(),
+    AveNegSent = mean(sentiment)
+  ) %>%
+  arrange(AveNegSent)
+
+PosTweetAcc <- PositiveSentiment %>%
+  group_by(screenName) %>%
+  summarise(
+    PosTweets = n(),
+    AvePosSent = mean(sentiment)
+  ) %>%
+  arrange(AvePosSent)
+
+NeutTweetAcc <- NeutralSentiment %>%
+  group_by(screenName) %>%
+  summarise(
+    NeutTweets= n(),
+    AveNeutSent = mean(sentiment)
+  ) %>%
+  arrange(AveNeutSent)
+
+Accounts <- Accounts %>%
+  left_join(NegTweetAcc, by = "screenName") %>%
+  left_join(PosTweetAcc, by = "screenName") %>%
+  left_join(NeutTweetAcc, by = "screenName")
+
+Accounts %>%
+#  filter(n>1) %>%
+  ggplot() +
+  geom_point(aes(reorder(screenName, AveSent), AveSent), size = 0.5, color = "Black") +
+  geom_point(aes(screenName, AveNegSent, size = NegTweets), color = "red") +
+  geom_point(aes(screenName, AveNeutSent, size = NeutTweets), color = "blue") +
+  geom_point(aes(screenName, AvePosSent, size = PosTweets), color = "green") +
+  theme_LeoCorp() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("Twitter Account Screen Name") +
+  ylab("Average Sentiment (0=Negative, 1=Positive)") +
+  ggtitle("Average Sentiment and Number of Tweets by User")
+
+
 # sentiment graph by date
 
 # color palette
