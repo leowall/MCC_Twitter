@@ -1,0 +1,50 @@
+# import twitter data from university accounts - see what overlap there is in terms of accounts
+# source("ImportTwitterData.R")
+
+StudentTweets <- read_csv("Nov_29_2017_Students_TwitterData.csv")
+
+StudentTweeters <- StudentTweets %>%
+  select(screenName, isRetweet) %>%
+  mutate(tweet = if_else(isRetweet == "FALSE", 1, 0),
+         retweet = if_else(isRetweet == "TRUE", 1, 0))
+
+Student <- StudentTweeters %>%
+  group_by(screenName) %>%
+  summarise(UniTweets = sum(tweet),
+            UniRetweets = sum(retweet))%>%
+  mutate(UniTotal = UniTweets + UniRetweets) %>%
+  arrange(desc(UniTotal))
+
+Student %>%
+  mutate(screenName = reorder(screenName, UniTotal)) %>%
+  top_n(25) %>%
+  ggplot(aes(screenName, UniTotal)) +
+  geom_bar(stat = "identity", color = "#733151", fill = "#733151") +
+  ggtitle("Top 25 University Accounts by Number of Tweets & ReTweets") +
+  theme_LeoCorp() +
+  coord_flip()
+
+MCCTweeters <- MCCTweets %>%
+  select(screenName, isRetweet) %>%
+  mutate(tweet = if_else(isRetweet == "FALSE", 1, 0),
+         retweet = if_else(isRetweet == "TRUE", 1, 0))
+
+MCCPeople <- MCCTweeters %>%
+  group_by(screenName) %>%
+  summarise(MCCTweets = sum(tweet),
+            MCCRetweets = sum(retweet))%>%
+  mutate(MCCTotal = MCCTweets + MCCRetweets)
+
+CommonTweets <- MCCPeople %>%
+  inner_join(Student, by = "screenName")
+
+CommonTweets %>%
+  filter(UniTweets >0) %>%
+  ggplot(aes(MCCTweets, UniTweets)) +
+  geom_point() +
+  theme_LeoCorp() +
+  ggtitle("Twitter Accounts Mentioing MCC and a University Account in Their Tweets") +
+  geom_text_repel(aes(label = screenName, size = 8))
+
+CommonTweets %>%
+  filter(MCCTweets == 0 & UniTweets >0)
