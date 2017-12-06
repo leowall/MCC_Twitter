@@ -1,0 +1,164 @@
+# word combinations bigrams and trigrams
+
+# source("1.ImportTwitterData.R")
+
+TweetTextWords <- TweetText %>%
+  unnest_tokens(word, text, token = "regex", pattern = unnest_reg)
+  
+
+TweetTextBigrams <- TweetText %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word) %>%
+  count(word1, word2, sort = FALSE)
+
+TweetTextBigrams <- TweetTextBigrams %>%
+  filter(!str_detect(word1, "^@"),
+         !str_detect(word2, "^@"))
+
+bigram_graph <- TweetTextBigrams %>%
+  filter(n>=2) %>%
+  graph_from_data_frame()
+
+#netwok of links between words
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(.07, "inches")) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+
+# network of top 25 words
+TopWords <- TweetTextBigrams %>%
+#   filter(word1 %in% c("manchester","people","city") | word2 %in% c("manchester","people","city"))
+  filter(word1 %in% c("manchester","people","city","parking","park","library","road","night","morning","awards","tonight","team","street","hope","award","proud","hall","christmas","community","central","day","centre","town","time","st","project","cycle")|
+         word2 %in% c("manchester","people","city","parking","park","library","road","night","morning","awards","tonight","team","street","hope","award","proud","hall","christmas","community","central","day","centre","town","time","st","project","cycle"))
+
+
+bigramTopWords_graph <- TopWords %>%
+    filter(n>1) %>%
+    graph_from_data_frame()
+
+#netwok of links between words
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigramTopWords_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(.07, "inches")) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void() +
+  set.seed(2001)
+
+BigramTopWords_VisGraph <- toVisNetworkData(bigramTopWords_graph)
+
+visNetwork(nodes = BigramTopWords_VisGraph$nodes, edges = BigramTopWords_VisGraph$edges) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visEdges(arrows = "middle") %>%
+  visLayout(randomSeed = 2001)
+  
+
+# trigrams - following on from bigram analysis
+
+TweetTextTrigrams <- TweetText %>%
+  unnest_tokens(trigram, text, token = "ngrams", n = 3) %>%
+  separate(trigram, c("word1", "word2", "word3"), sep = " ") %>%
+#  filter(!word1 %in% stop_words$word,
+#         !word2 %in% stop_words$word,
+#         !word3 %in% stop_words$word) %>%
+  count(word1, word2, word3, sort = FALSE)
+
+TweetTextTrigrams <- TweetTextTrigrams %>%
+  filter(!str_detect(word1, "^@"),
+         !str_detect(word2, "^@"),
+         !str_detect(word3, "^@"))
+
+trigram_graph <- TweetTextTrigrams %>%
+  filter(n>1) %>%  
+  graph_from_data_frame()
+
+#netwok of links between words
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(trigram_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(.07, "inches")) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+
+# network of top 25 words
+TopWords <- TweetTextTrigrams %>%
+  #   filter(word1 %in% c("manchester","people","city") | word2 %in% c("manchester","people","city"))
+  filter(word1 %in% c("manchester","people","city","parking","park","library","road","night","morning","awards","tonight","team","street","hope","award","proud","hall","christmas","community","central","day","centre","town","time","st","project","cycle")|
+           word2 %in% c("manchester","people","city","parking","park","library","road","night","morning","awards","tonight","team","street","hope","award","proud","hall","christmas","community","central","day","centre","town","time","st","project","cycle"))
+
+
+trigramTopWords_graph <- TopWords %>%
+  filter(n>1) %>%
+  graph_from_data_frame()
+
+#netwok of links between words
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(trigramTopWords_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(.07, "inches")) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void() +
+  set.seed(2001)
+
+trigramTopWords_VisGraph <- toVisNetworkData(bigramTopWords_graph)
+
+visNetwork(nodes = trigramTopWords_VisGraph$nodes, edges = BigramTopWords_VisGraph$edges) %>%
+  visIgraphLayout(layout = "layout_with_fr") %>%
+  visEdges(arrows = "middle") %>%
+  visLayout(randomSeed = 2001)
+  
+# common words and bigram analysis of tweets directly to MCC
+
+toMCCwords <- toMCCTweetText %>%
+  unnest_tokens(word, text, token = "regex", pattern = unnest_reg) %>%
+  filter(!word %in% stop_words$word,
+         str_detect(word, "[a-z]"))
+
+toMCCWordCount <- toMCCwords %>%
+  filter(word != "ed") %>%
+  count(word, sort = TRUE)
+
+toMCCWordCount %>%
+  mutate(word = reorder(word, n)) %>%
+  top_n(10) %>%
+  ggplot(aes(word, n)) +
+  geom_bar(stat = "identity", color = "#733151", fill = "#733151") +
+  ggtitle("Top 10 Words Occuring in Tweets to \n@ManCityCouncil") +
+  ylab("Number of Occurances") +
+  coord_flip() +
+  theme_LeoCorp()
+
+# Bigrams
+toMCCBigrams <- toMCCTweetText %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2) %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+#  filter(!word1 %in% stop_words$word,
+#         !word2 %in% stop_words$word) %>%
+  count(word1, word2, sort = FALSE)
+
+toMCCBigrams <- toMCCBigrams %>%
+  filter(!str_detect(word1, "^@"),
+         !str_detect(word2, "^@"))
+
+toMCCbigram_graph <- toMCCBigrams %>%
+  filter(n>=2) %>%
+  graph_from_data_frame()
+
+#netwok of links between words
+b <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(toMCCbigram_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE, arrow = a, end_cap = circle(.07, "inches")) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+
+wordcloud2(toMCCWordCount)
